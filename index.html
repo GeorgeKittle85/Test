@@ -1,41 +1,73 @@
 <!doctype html>
 
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>CipherRoom — End-to-End Encrypted Chat</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-<!-- No Firebase SDK needed — using REST API + SSE -->
+<!-- No Firebase SDK needed — using REST API + SSE live stream -->
 
 <style>
-  /* ─── Design tokens ─────────────────────────────── */
+  /* ─── Design tokens ─────────────────────────────────────────────
+     Dark is the default. Light overrides live under [data-theme="light"].
+     JS sets data-theme on <html> from localStorage or the OS preference. */
   :root {
-    --bg:        #060c18;
-    --surface:   #0b1428;
-    --card:      #101d38;
-    --card2:     #162244;
-    --border:    #1e3058;
-    --border2:   #2a4070;
-    --accent:    #00c8a8;
-    --accent2:   #3b8ef0;
-    --own-bg:    #0a2040;
-    --own-border:#1a4a80;
-    --danger:    #e05060;
-    --text:      #d8e8f8;
-    --muted:     #5a7a9a;
-    --muted2:    #3a5a7a;
-    --mono:      'IBM Plex Mono', monospace;
-    --sans:      'IBM Plex Sans', sans-serif;
-    --display:   'Rajdhani', sans-serif;
-    --radius:    10px;
-    --msg-radius:14px;
+    --bg:          #0a0f1c;
+    --bg-grid:     rgba(20,184,166,.035);
+    --surface:     #111827;
+    --card:        #1a2234;
+    --elevated:    #212b40;
+    --border:      #273350;
+    --border-str:  #38476a;
+    --accent:      #14b8a6;
+    --accent-2:    #3b82f6;
+    --accent-soft: rgba(20,184,166,.12);
+    --own-bg:      #16304f;
+    --own-border:  #27507d;
+    --own-text:    #dcebff;
+    --danger:      #f0616e;
+    --danger-soft: rgba(240,97,110,.12);
+    --text:        #e8eef7;
+    --muted:       #8a9bb5;
+    --faint:       #586a86;
+    --shadow-lg:   0 24px 60px rgba(0,0,0,.55);
+    --shadow-sm:   0 4px 20px rgba(0,0,0,.35);
+    --mono:    'IBM Plex Mono', monospace;
+    --sans:    'IBM Plex Sans', sans-serif;
+    --display: 'Rajdhani', sans-serif;
+    --radius:  12px;
+    --radius-lg: 20px;
+    --msg-radius: 16px;
   }
 
-  /* ─── Reset & base ───────────────────────────────── */
+  :root[data-theme="light"] {
+    --bg:          #f3f6fb;
+    --bg-grid:     rgba(13,148,136,.05);
+    --surface:     #ffffff;
+    --card:        #ffffff;
+    --elevated:    #eef2f9;
+    --border:      #e2e8f2;
+    --border-str:  #cbd6e6;
+    --accent:      #0d9488;
+    --accent-2:    #2563eb;
+    --accent-soft: rgba(13,148,136,.1);
+    --own-bg:      #e4f3f0;
+    --own-border:  #b2ddd5;
+    --own-text:    #0c3b35;
+    --danger:      #d93a4a;
+    --danger-soft: rgba(217,58,74,.1);
+    --text:        #16202e;
+    --muted:       #5a6b85;
+    --faint:       #9aa9bf;
+    --shadow-lg:   0 20px 50px rgba(20,40,80,.14);
+    --shadow-sm:   0 4px 18px rgba(20,40,80,.08);
+  }
+
+  /* ─── Reset & base ─────────────────────────────────────────────── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
   body {
@@ -44,27 +76,45 @@
     color: var(--text);
     min-height: 100vh;
     overflow-x: hidden;
+    transition: background .3s ease, color .3s ease;
   }
 
-  /* ─── Animated grid background ──────────────────── */
+  /* ─── Subtle grid backdrop ─────────────────────────────────────── */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     background-image:
-      linear-gradient(rgba(0,200,168,.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,200,168,.025) 1px, transparent 1px);
-    background-size: 40px 40px;
+      linear-gradient(var(--bg-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+    background-size: 44px 44px;
     pointer-events: none;
     z-index: 0;
   }
 
-  /* ─── Page wrapper ───────────────────────────────── */
   #app { position: relative; z-index: 1; height: 100vh; display: flex; flex-direction: column; }
 
-  /* ═══════════════════════════════════════════════════
+  /* ─── Theme toggle (always available, top-right) ───────────────── */
+  .theme-toggle {
+    position: fixed;
+    top: 16px; right: 16px;
+    z-index: 50;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 17px;
+    box-shadow: var(--shadow-sm);
+    transition: all .2s ease;
+  }
+  .theme-toggle:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-1px); }
+
+  /* ═══════════════════════════════════════════════════════════════
      JOIN SCREEN
-  ═══════════════════════════════════════════════════ */
+  ═══════════════════════════════════════════════════════════════ */
   #joinScreen {
     flex: 1;
     display: flex;
@@ -78,51 +128,38 @@
   .join-card {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 18px;
+    border-radius: var(--radius-lg);
     padding: 40px 36px;
     width: 100%;
     max-width: 440px;
-    box-shadow: 0 0 80px rgba(0,200,168,.06), 0 24px 48px rgba(0,0,0,.5);
+    box-shadow: var(--shadow-lg);
   }
 
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 28px;
-  }
+  .logo { display: flex; align-items: center; gap: 13px; margin-bottom: 28px; }
   .logo-icon {
-    width: 42px; height: 42px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 10px;
+    width: 46px; height: 46px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border-radius: 13px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
+    font-size: 22px;
+    box-shadow: 0 8px 24px var(--accent-soft);
   }
   .logo-text {
     font-family: var(--display);
-    font-size: 26px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    line-height: 1;
+    font-size: 28px; font-weight: 700;
+    letter-spacing: .03em; line-height: 1;
   }
   .logo-sub {
-    font-size: 11px;
-    color: var(--accent);
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    font-family: var(--mono);
-    margin-top: 3px;
+    font-size: 11px; color: var(--accent);
+    letter-spacing: .14em; text-transform: uppercase;
+    font-family: var(--mono); margin-top: 4px;
   }
 
   .field-group { margin-bottom: 18px; }
   .field-label {
     display: block;
-    font-size: 11px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-family: var(--mono);
-    margin-bottom: 7px;
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-family: var(--mono); margin-bottom: 8px;
   }
   .field-row { display: flex; gap: 8px; }
   .field-input {
@@ -131,239 +168,168 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-family: var(--sans);
-    font-size: 14px;
-    padding: 11px 14px;
-    outline: none;
+    font-family: var(--sans); font-size: 14px;
+    padding: 12px 14px; outline: none;
     transition: border-color .2s, box-shadow .2s;
   }
-  .field-input::placeholder { color: var(--muted); }
-  .field-input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(0,200,168,.12);
-  }
+  .field-input::placeholder { color: var(--faint); }
+  .field-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .field-input.mono-input { font-family: var(--mono); letter-spacing: .05em; }
-  .field-hint {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 5px;
-    font-family: var(--mono);
-  }
+  .field-input.invalid { border-color: var(--danger); }
+  .field-hint { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: var(--mono); }
 
   .btn {
-    cursor: pointer;
-    border: none;
-    border-radius: var(--radius);
-    font-size: 14px;
-    font-family: var(--sans);
-    font-weight: 500;
-    padding: 11px 18px;
-    transition: all .18s;
-    outline: none;
-    white-space: nowrap;
+    cursor: pointer; border: none; border-radius: var(--radius);
+    font-size: 14px; font-family: var(--sans); font-weight: 500;
+    padding: 11px 18px; transition: all .18s; outline: none; white-space: nowrap;
   }
   .btn-accent {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: #fff;
-    width: 100%;
-    font-family: var(--display);
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: .05em;
-    padding: 13px;
-    margin-top: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; width: 100%;
+    font-family: var(--display); font-size: 16px; font-weight: 600;
+    letter-spacing: .05em; padding: 14px; margin-top: 8px;
   }
-  .btn-accent:hover { opacity: .88; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,200,168,.25); }
+  .btn-accent:hover { opacity: .9; transform: translateY(-1px); box-shadow: 0 10px 28px var(--accent-soft); }
   .btn-accent:active { transform: none; }
   .btn-ghost {
-    background: var(--card2);
+    background: var(--elevated);
     border: 1px solid var(--border);
     color: var(--muted);
-    font-family: var(--mono);
-    font-size: 12px;
-    padding: 10px 12px;
+    font-family: var(--mono); font-size: 12px; padding: 10px 12px;
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
 
-  .divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 24px 0;
-  }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
   .security-badge {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--mono);
+    display: flex; align-items: center; gap: 9px;
+    font-size: 11px; color: var(--muted); font-family: var(--mono); line-height: 1.5;
   }
   .security-badge .dot {
-    width: 7px; height: 7px;
-    background: var(--accent);
-    border-radius: 50%;
+    width: 7px; height: 7px; flex-shrink: 0;
+    background: var(--accent); border-radius: 50%;
     animation: pulse 2s infinite;
   }
-  @keyframes pulse {
-    0%,100% { opacity:1; } 50% { opacity:.4; }
-  }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
 
-  /* ═══════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════
      CHAT SCREEN
-  ═══════════════════════════════════════════════════ */
+  ═══════════════════════════════════════════════════════════════ */
   #chatScreen {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    max-width: 860px;
-    width: 100%;
+    display: flex; flex-direction: column;
+    max-width: 880px; width: 100%;
     margin: 0 auto;
-    padding: 0;
     height: 100vh;
     animation: fadeIn .3s ease;
   }
 
-  /* Header */
   .chat-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between;
     padding: 14px 20px;
     background: var(--card);
     border-bottom: 1px solid var(--border);
-    gap: 12px;
-    flex-shrink: 0;
+    gap: 12px; flex-shrink: 0;
   }
   .header-left { display: flex; align-items: center; gap: 12px; }
-  .header-logo {
-    font-family: var(--display);
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: .04em;
-  }
+  .header-logo { font-family: var(--display); font-size: 21px; font-weight: 700; letter-spacing: .03em; }
   .header-logo span { color: var(--accent); }
   .room-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    display: flex; align-items: center; gap: 6px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 4px 12px;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text);
+    border-radius: 20px; padding: 5px 12px;
+    font-family: var(--mono); font-size: 12px; color: var(--text);
   }
   .room-badge .live-dot {
-    width: 6px; height: 6px;
-    background: var(--accent);
-    border-radius: 50%;
-    animation: pulse 1.5s infinite;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--faint); transition: background .3s;
   }
+  .room-badge.live .live-dot { background: var(--accent); animation: pulse 1.5s infinite; }
   .header-right { display: flex; align-items: center; gap: 8px; }
   .user-chip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--muted);
-    padding: 4px 10px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 13px; color: var(--muted);
+    padding: 4px 10px 4px 4px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 20px;
   }
   .user-chip .avatar {
-    width: 22px; height: 22px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    width: 24px; height: 24px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 11px;
-    font-weight: 600;
-    color: #fff;
+    font-size: 11px; font-weight: 600; color: #fff;
   }
   .btn-leave {
     background: transparent;
     border: 1px solid var(--border);
     color: var(--muted);
-    border-radius: 8px;
-    font-size: 12px;
-    padding: 6px 12px;
-    cursor: pointer;
-    font-family: var(--mono);
-    transition: all .18s;
+    border-radius: 9px; font-size: 12px; padding: 7px 12px;
+    cursor: pointer; font-family: var(--mono); transition: all .18s;
   }
   .btn-leave:hover { border-color: var(--danger); color: var(--danger); }
 
-  /* Encryption bar */
   .enc-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 20px;
-    background: rgba(0,200,168,.06);
-    border-bottom: 1px solid rgba(0,200,168,.15);
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--accent);
-    letter-spacing: .05em;
-    flex-shrink: 0;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 20px;
+    background: var(--accent-soft);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    letter-spacing: .04em; flex-shrink: 0;
   }
-  .enc-bar .lock-icon { font-size: 13px; }
 
-  /* Message list */
+  /* ─── Message list ─────────────────────────────────────────────── */
   #messageList {
-    flex: 1;
-    overflow-y: auto;
+    flex: 1; overflow-y: auto;
     padding: 20px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    display: flex; flex-direction: column; gap: 4px;
     scroll-behavior: smooth;
   }
-  #messageList::-webkit-scrollbar { width: 5px; }
+  #messageList::-webkit-scrollbar { width: 6px; }
   #messageList::-webkit-scrollbar-track { background: transparent; }
-  #messageList::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  #messageList::-webkit-scrollbar-thumb { background: var(--border-str); border-radius: 3px; }
 
-  /* Message bubbles */
   .msg-wrapper {
-    display: flex;
-    flex-direction: column;
-    max-width: 72%;
+    display: flex; flex-direction: column;
+    max-width: 74%;
+    margin-bottom: 8px;
     animation: msgIn .25s cubic-bezier(.22,.61,.36,1);
   }
-  @keyframes msgIn {
-    from { opacity:0; transform: translateY(8px) scale(.98); }
-    to   { opacity:1; transform: none; }
-  }
-  .msg-wrapper.own { align-self: flex-end; align-items: flex-end; }
+  @keyframes msgIn { from { opacity:0; transform: translateY(8px) scale(.98); } to { opacity:1; transform: none; } }
+  @keyframes msgOut { to { opacity:0; transform: translateY(-6px) scale(.97); } }
+  .msg-wrapper.removing { animation: msgOut .2s ease forwards; }
+  .msg-wrapper.own   { align-self: flex-end; align-items: flex-end; }
   .msg-wrapper.other { align-self: flex-start; align-items: flex-start; }
 
   .msg-meta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--mono);
-    margin-bottom: 4px;
-    padding: 0 4px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11px; color: var(--muted);
+    font-family: var(--mono); margin-bottom: 4px; padding: 0 4px;
   }
   .msg-meta .sender { color: var(--text); font-weight: 500; }
-  .msg-meta .time { color: var(--muted); }
+  .msg-meta .tag {
+    font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+    padding: 1px 6px; border-radius: 10px;
+    border: 1px solid var(--border-str); color: var(--faint);
+  }
+  .msg-meta .tag.ephemeral { color: var(--accent-2); border-color: var(--accent-2); }
+
+  .msg-row { display: flex; align-items: flex-end; gap: 6px; }
+  .msg-wrapper.own .msg-row { flex-direction: row-reverse; }
 
   .msg-bubble {
     padding: 10px 14px;
     border-radius: var(--msg-radius);
-    font-size: 14px;
-    line-height: 1.55;
-    word-break: break-word;
+    font-size: 14px; line-height: 1.55;
+    word-break: break-word; white-space: pre-wrap;
     position: relative;
   }
   .msg-wrapper.own .msg-bubble {
     background: var(--own-bg);
     border: 1px solid var(--own-border);
     border-bottom-right-radius: 4px;
-    color: #c8e0f8;
+    color: var(--own-text);
   }
   .msg-wrapper.other .msg-bubble {
     background: var(--card);
@@ -371,158 +337,168 @@
     border-bottom-left-radius: 4px;
     color: var(--text);
   }
-
+  .msg-wrapper.ephemeral .msg-bubble { border-style: dashed; }
   .msg-bubble.encrypted {
-    font-family: var(--mono);
-    font-size: 12px;
+    font-family: var(--mono); font-size: 12px;
     color: var(--muted);
-    background: var(--surface);
-    border-style: dashed;
+    background: var(--surface); border-style: dashed;
   }
+
+  .edited-flag { font-size: 10px; color: var(--faint); font-family: var(--mono); margin-left: 4px; }
   .enc-label {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--mono);
-    margin-top: 4px;
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 4px; padding: 0 4px;
   }
+
+  /* message action buttons (edit / delete) — shown on own messages */
+  .msg-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+  .msg-wrapper.own:hover .msg-actions, .msg-wrapper.own:focus-within .msg-actions { opacity: 1; }
+  .msg-act {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--faint); border-radius: 7px; font-size: 13px;
+    transition: all .15s;
+  }
+  .msg-act:hover { background: var(--elevated); color: var(--text); }
+  .msg-act.del:hover { color: var(--danger); background: var(--danger-soft); }
+  .msg-act.confirm { color: var(--danger); font-size: 11px; width: auto; padding: 0 8px; font-family: var(--mono); }
 
   /* System messages */
   .msg-system {
     align-self: center;
-    background: transparent;
-    color: var(--muted);
-    font-size: 11px;
-    font-family: var(--mono);
-    padding: 4px 12px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    letter-spacing: .04em;
+    color: var(--muted); font-size: 11px; font-family: var(--mono);
+    padding: 5px 14px; border-radius: 20px;
+    border: 1px solid var(--border); letter-spacing: .04em;
+    margin: 6px 0;
   }
 
-  /* Input area */
+  /* ─── Composer ─────────────────────────────────────────────────── */
   .chat-input-area {
-    padding: 14px 16px;
+    padding: 12px 16px 14px;
     background: var(--card);
     border-top: 1px solid var(--border);
     flex-shrink: 0;
   }
-  .input-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
+  .edit-banner {
+    display: none;
+    align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 9px;
+    padding: 7px 12px;
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: var(--mono); font-size: 12px; color: var(--accent);
   }
+  .edit-banner.show { display: flex; }
+  .edit-banner button {
+    background: transparent; border: none; color: var(--muted);
+    cursor: pointer; font-family: var(--mono); font-size: 12px;
+  }
+  .edit-banner button:hover { color: var(--danger); }
+
+  .input-row { display: flex; gap: 10px; align-items: flex-end; }
   #msgInput {
     flex: 1;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 13px;
     color: var(--text);
-    font-family: var(--sans);
-    font-size: 14px;
-    padding: 11px 16px;
-    resize: none;
-    outline: none;
-    min-height: 44px;
-    max-height: 140px;
-    overflow-y: auto;
+    font-family: var(--sans); font-size: 14px;
+    padding: 12px 16px;
+    resize: none; outline: none;
+    min-height: 46px; max-height: 140px; overflow-y: auto;
     line-height: 1.5;
     transition: border-color .2s, box-shadow .2s;
   }
-  #msgInput::placeholder { color: var(--muted); }
-  #msgInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,200,168,.08); }
+  #msgInput::placeholder { color: var(--faint); }
+  #msgInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .btn-icon {
+    width: 46px; height: 46px; min-width: 46px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; color: var(--muted);
+    transition: all .18s; align-self: flex-end;
+  }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-icon.active {
+    background: var(--accent-soft);
+    border-color: var(--accent-2);
+    color: var(--accent-2);
+  }
 
   .btn-send {
-    width: 44px; height: 44px;
-    min-width: 44px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
+    width: 46px; height: 46px; min-width: 46px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none; border-radius: 13px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    transition: all .18s;
-    align-self: flex-end;
+    font-size: 18px; color: #fff;
+    transition: all .18s; align-self: flex-end;
   }
-  .btn-send:hover { opacity: .85; transform: scale(1.06); }
+  .btn-send:hover { opacity: .9; transform: scale(1.05); }
   .btn-send:active { transform: scale(.96); }
   .btn-send:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
   .input-hint {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--muted2);
-    font-family: var(--mono);
-    margin-top: 6px;
-    padding: 0 2px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--faint);
+    font-family: var(--mono); margin-top: 7px; padding: 0 2px;
+    transition: color .2s;
   }
+  .input-hint.ephemeral { color: var(--accent-2); }
 
-  /* Error / status toast */
+  /* Toast */
   #toast {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
+    position: fixed; bottom: 24px; left: 50%;
     transform: translateX(-50%) translateY(80px);
-    background: var(--card2);
-    border: 1px solid var(--border2);
+    background: var(--elevated);
+    border: 1px solid var(--border-str);
     color: var(--text);
-    font-size: 13px;
-    padding: 10px 20px;
-    border-radius: 8px;
+    font-size: 13px; padding: 11px 20px; border-radius: 10px;
     font-family: var(--mono);
     transition: transform .3s cubic-bezier(.22,.61,.36,1), opacity .3s;
-    opacity: 0;
-    z-index: 100;
-    pointer-events: none;
-    white-space: nowrap;
+    opacity: 0; z-index: 100; pointer-events: none; max-width: 90vw;
+    box-shadow: var(--shadow-sm);
   }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
   #toast.error { border-color: var(--danger); color: var(--danger); }
 
-  /* Helpers */
-
-
   .hidden { display: none !important; }
   #loadingMsg {
     display: flex; align-items: center; justify-content: center;
-    flex: 1;
-    flex-direction: column;
-    gap: 12px;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 13px;
+    flex: 1; flex-direction: column; gap: 12px;
+    color: var(--muted); font-family: var(--mono); font-size: 13px;
   }
   .spinner {
     width: 28px; height: 28px;
-    border: 2px solid var(--border2);
+    border: 2px solid var(--border-str);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin .8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ─── Error validation ──── */
-  .field-input.invalid { border-color: var(--danger); }
-  .field-error { color: var(--danger); font-size: 11px; margin-top: 4px; font-family: var(--mono); }
-
   @media (max-width: 600px) {
-    .join-card { padding: 28px 20px; }
-    .msg-wrapper { max-width: 88%; }
+    .join-card { padding: 28px 22px; }
+    .msg-wrapper { max-width: 90%; }
     .chat-header { padding: 10px 14px; }
     .header-logo { display: none; }
+    .theme-toggle { top: 12px; right: 12px; }
+    .msg-actions { opacity: 1; } /* always visible on touch */
   }
 </style>
 
 </head>
 <body>
+
+<button class="theme-toggle" id="themeToggle" title="Toggle light / dark" aria-label="Toggle theme">🌙</button>
+
 <div id="app">
 
   <!-- ════════════════ JOIN SCREEN ════════════════ -->
-
   <div id="joinScreen">
     <div class="join-card">
       <div class="logo">
@@ -533,93 +509,91 @@
         </div>
       </div>
 
-```
-  <div class="field-group">
-    <label class="field-label" for="joinName">Your display name</label>
-    <input class="field-input" id="joinName" type="text" placeholder="e.g. Alice" maxlength="24" autocomplete="off"/>
-  </div>
+      <div class="field-group">
+        <label class="field-label" for="joinName">Your display name</label>
+        <input class="field-input" id="joinName" type="text" placeholder="e.g. Alice" maxlength="24" autocomplete="off"/>
+      </div>
 
-  <div class="field-group">
-    <label class="field-label" for="joinRoom">Room name</label>
-    <input class="field-input" id="joinRoom" type="text" placeholder="e.g. team-alpha" maxlength="32" autocomplete="off"/>
-    <div class="field-hint">Letters, numbers, hyphens only. Shared with anyone you invite.</div>
-  </div>
+      <div class="field-group">
+        <label class="field-label" for="joinRoom">Room name</label>
+        <input class="field-input" id="joinRoom" type="text" placeholder="e.g. team-alpha" maxlength="32" autocomplete="off"/>
+        <div class="field-hint">Letters, numbers, hyphens only. Shared with anyone you invite.</div>
+      </div>
 
-  <div class="field-group">
-    <label class="field-label" for="joinPass">Room password (exactly 10 characters)</label>
-    <div class="field-row">
-      <input class="field-input mono-input" id="joinPass" type="text" placeholder="e.g. P@ssw0rd!2" maxlength="10" autocomplete="off" spellcheck="false"/>
-      <button class="btn btn-ghost" id="genPassBtn" title="Generate random 10-char password">🎲 Random</button>
+      <div class="field-group">
+        <label class="field-label" for="joinPass">Room password (exactly 10 characters)</label>
+        <div class="field-row">
+          <input class="field-input mono-input" id="joinPass" type="text" placeholder="e.g. P@ssw0rd!2" maxlength="10" autocomplete="off" spellcheck="false"/>
+          <button class="btn btn-ghost" id="genPassBtn" title="Generate random 10-char password">🎲 Random</button>
+        </div>
+        <div class="field-hint" id="passCounter">0 / 10 characters · used to encrypt every message</div>
+      </div>
+
+      <hr class="divider"/>
+
+      <div class="security-badge" style="margin-bottom:16px;">
+        <div class="dot"></div>
+        AES-256-GCM · PBKDF2 · 150,000 iterations · client-side only
+      </div>
+
+      <button class="btn btn-accent" id="joinBtn">Enter Room →</button>
     </div>
-    <div class="field-hint" id="passCounter">0 / 10 characters · used to encrypt every message</div>
-  </div>
-
-  <hr class="divider"/>
-
-  <div class="security-badge" style="margin-bottom:16px;">
-    <div class="dot"></div>
-    AES-256-GCM · PBKDF2 · 150,000 iterations · client-side only
-  </div>
-
-  <button class="btn btn-accent" id="joinBtn">Enter Room →</button>
-</div>
-```
-
   </div>
 
   <!-- ════════════════ CHAT SCREEN ════════════════ -->
-
   <div id="chatScreen" class="hidden">
 
-```
-<header class="chat-header">
-  <div class="header-left">
-    <div class="header-logo">Cipher<span>Room</span></div>
-    <div class="room-badge">
-      <div class="live-dot"></div>
-      <span id="roomLabel">—</span>
+    <header class="chat-header">
+      <div class="header-left">
+        <div class="header-logo">Cipher<span>Room</span></div>
+        <div class="room-badge" id="roomBadge">
+          <div class="live-dot"></div>
+          <span id="roomLabel">—</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="user-chip">
+          <div class="avatar" id="userAvatar">?</div>
+          <span id="userLabel">—</span>
+        </div>
+        <button class="btn-leave" id="leaveBtn">Leave</button>
+      </div>
+    </header>
+
+    <div class="enc-bar">
+      <span class="lock-icon">🔒</span>
+      End-to-end encrypted · AES-256-GCM · Messages are never stored in plaintext
     </div>
-  </div>
-  <div class="header-right">
-    <div class="user-chip">
-      <div class="avatar" id="userAvatar">?</div>
-      <span id="userLabel">—</span>
+
+    <!-- Messages -->
+    <div id="messageList">
+      <div id="loadingMsg">
+        <div class="spinner"></div>
+        <span>Connecting…</span>
+      </div>
     </div>
-    <button class="btn-leave" id="leaveBtn">Leave</button>
-  </div>
-</header>
 
-<div class="enc-bar">
-  <span class="lock-icon">🔒</span>
-  End-to-end encrypted · AES-256-GCM · Messages are never stored in plaintext
-</div>
-
-<!-- Messages -->
-<div id="messageList">
-  <div id="loadingMsg">
-    <div class="spinner"></div>
-    <span>Connecting…</span>
-  </div>
-</div>
-
-<!-- Input -->
-<div class="chat-input-area">
-  <div class="input-row">
-    <textarea id="msgInput" rows="1" placeholder="Type a message… (Enter to send)"></textarea>
-    <button class="btn-send" id="sendBtn" title="Send message">➤</button>
-  </div>
-  <div class="input-hint">
-    🔐 Messages are encrypted before leaving your device
-  </div>
-</div>
-```
+    <!-- Composer -->
+    <div class="chat-input-area">
+      <div class="edit-banner" id="editBanner">
+        <span>✏️ Editing message</span>
+        <button id="cancelEditBtn">Cancel</button>
+      </div>
+      <div class="input-row">
+        <button class="btn-icon" id="ephemeralBtn" title="Ephemeral mode — send without saving">👻</button>
+        <textarea id="msgInput" rows="1" placeholder="Type a message… (Enter to send)"></textarea>
+        <button class="btn-send" id="sendBtn" title="Send message">➤</button>
+      </div>
+      <div class="input-hint" id="inputHint">
+        🔐 Messages are encrypted before leaving your device
+      </div>
+    </div>
 
   </div>
 
 </div>
 
 <!-- Toast -->
-
 <div id="toast"></div>
 
 <script>
@@ -743,7 +717,6 @@ async function _checkBan() {
 }
 
 const DB_URL = FIREBASE_CONFIG.databaseURL;
-let sseSource = null;  // active SSE connection
 
 function initFirebase() {
   return true;  // nothing to init — REST needs no setup
@@ -759,6 +732,49 @@ async function firebasePost(path, data) {
   return res.json();
 }
 
+async function firebasePatch(path, data) {
+  const res = await fetch(`${DB_URL}/${path}.json`, {
+    method:  'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(`Update failed (${res.status})`);
+  return res.json();
+}
+
+async function firebaseDelete(path) {
+  const res = await fetch(`${DB_URL}/${path}.json`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+  return true;
+}
+
+/* ═══════════════════════════════════════════════════
+   THEME
+═══════════════════════════════════════════════════ */
+const themeToggle = document.getElementById('themeToggle');
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  themeToggle.textContent = theme === 'light' ? '☀️' : '🌙';
+}
+
+(function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('cr-theme'); } catch(_) {}
+  if (saved !== 'light' && saved !== 'dark') {
+    const prefersLight = window.matchMedia
+      && window.matchMedia('(prefers-color-scheme: light)').matches;
+    saved = prefersLight ? 'light' : 'dark';
+  }
+  applyTheme(saved);
+})();
+
+themeToggle.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { localStorage.setItem('cr-theme', next); } catch(_) {}
+});
+
 /* ═══════════════════════════════════════════════════
    JOIN SCREEN LOGIC
 ═══════════════════════════════════════════════════ */
@@ -770,6 +786,7 @@ const joinPassEl  = document.getElementById('joinPass');
 const passCounter = document.getElementById('passCounter');
 const genPassBtn  = document.getElementById('genPassBtn');
 const joinBtn     = document.getElementById('joinBtn');
+const roomBadge   = document.getElementById('roomBadge');
 
 joinPassEl.addEventListener('input', () => {
   const n = joinPassEl.value.length;
@@ -824,7 +841,7 @@ async function tryJoin() {
     return;
   }
 
-  // Assign to window first — must be set before startChat polls
+  // Assign to window first — must be set before startChat runs
   window._cu = name;
   window._cr = room;
   window._cp = pass;
@@ -857,161 +874,437 @@ async function tryJoin() {
 
 /* ═══════════════════════════════════════════════════
    CHAT LOGIC
+═══════════════════════════════════════════════════
+
+   Data layer: a single Server-Sent-Events stream of the whole room
+   (GET /rooms/{room}.json with EventSource). Firebase's REST streaming
+   API delivers the ENTIRE room in one initial "put" event, then pushes
+   incremental put/patch events for each new, edited, deleted or ephemeral
+   message — so we read everything at once and stay live over one
+   connection, with no per-message polling. If the stream can't be
+   established (e.g. a strict proxy mangles SSE), we fall back to a single
+   bulk GET of all messages on a timer.
 ═══════════════════════════════════════════════════ */
 const messageList = document.getElementById('messageList');
 const loadingMsg  = document.getElementById('loadingMsg');
 const sendBtn     = document.getElementById('sendBtn');
 const leaveBtn    = document.getElementById('leaveBtn');
+const ephemeralBtn= document.getElementById('ephemeralBtn');
+const inputHint   = document.getElementById('inputHint');
+const editBanner  = document.getElementById('editBanner');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
 
-let firstLoad = true;
-let messageCount = 0;
-let _pollFails = 0; // consecutive poll failures
+let es = null;                 // active EventSource
+let pollTimer = null;          // bulk-GET fallback timer
+let streamErrCount = 0;
+let connectedOnce = false;     // have we received the first snapshot?
+
+const msgCache = new Map();    // key -> message object (persistent messages)
+const msgEls   = new Map();    // key -> wrapper element
+let editingKey = null;         // key of message currently being edited
+let ephemeralMode = false;     // composer in "send without saving" mode
 
 function startChat() {
-  firstLoad = true;
-  messageCount = 0;
+  connectedOnce = false;
+  streamErrCount = 0;
+  editingKey = null;
+  setEphemeralMode(false);
+  msgCache.clear();
+  msgEls.clear();
   messageList.innerHTML = '';
   messageList.appendChild(loadingMsg);
   loadingMsg.classList.remove('hidden');
-
-  // Close any previous poll
-  if (sseSource) { clearInterval(sseSource); sseSource = null; }
-
-  // Track keys we've already rendered to avoid duplicates
-  const seenKeys = new Set();
-
-  // Helper: fetch one tiny JSON response and parse it safely
-  async function _fetch(url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const raw = await res.text();
-    if (!raw || raw.trim() === '' || raw.trim() === 'null') return null;
-    if (raw.trim().startsWith('<')) throw new Error('proxy_html');
-    return JSON.parse(raw);
-  }
-
-  async function pollMessages() {
-    // Safety guard — never poll if room name isn't set yet
-    if (!window._cr || window._cr.trim() === '') return;
-
-    try {
-      // ── Step 1: fetch ONLY the keys using shallow=true ──────────────
-      // Response is tiny: {"key1":true,"key2":true} — a few dozen bytes.
-      // Rammerhead can't drop a response this small.
-      const base = DB_URL + '/rooms/' + window._cr + '/messages.json';
-      const keysData = await _fetch(base + '?shallow=true');
-
-      loadingMsg.classList.add('hidden');
-      firstLoad = false;
-      _pollFails = 0;
-
-      if (!keysData) {
-        if (messageCount === 0 && seenKeys.size === 0) {
-          renderSystem('No messages yet. Send the first one!');
-          seenKeys.add('__empty__');
-        }
-        return;
-      }
-
-      // ── Step 2: find keys we haven't rendered yet ────────────────────
-      const allKeys = Object.keys(keysData);
-      const newKeys = allKeys.filter(k => !seenKeys.has(k));
-      if (newKeys.length === 0) return; // nothing new
-
-      seenKeys.delete('__empty__');
-
-      // ── Step 3: fetch each new message individually ──────────────────
-      // Each fetch is one tiny message — ~300 bytes max.
-      // Process in timestamp order by fetching all then sorting.
-      const fetched = [];
-      for (const key of newKeys) {
-        try {
-          const msg = await _fetch(DB_URL + '/rooms/' + window._cr + '/messages/' + key + '.json');
-          if (msg && msg.ciphertext) fetched.push({ key, msg });
-        } catch(_) { /* skip failed individual fetches */ }
-      }
-
-      // Sort by timestamp before rendering
-      fetched.sort((a, b) => (a.msg.timestamp || 0) - (b.msg.timestamp || 0));
-
-      for (const { key, msg } of fetched) {
-        seenKeys.add(key);
-        messageCount++;
-        await renderMessage(msg);
-      }
-
-    } catch (e) {
-      loadingMsg.classList.add('hidden');
-      firstLoad = false;
-      _pollFails++;
-      if (e.message !== 'proxy_html') console.error('Poll error:', e.message || e);
-      if (messageCount === 0 && seenKeys.size === 0
-          && _pollFails >= 2 && !seenKeys.has('__err__')) {
-        seenKeys.add('__err__');
-        renderSystem('Retrying connection…');
-      }
-    }
-  }
-
-  // Delay first poll slightly so Rammerhead's rewriter finishes
-  // assigning window._cr before the first fetch fires
-  setTimeout(pollMessages, 250);
-  sseSource = setInterval(pollMessages, 3000);
-
+  openStream();
   msgInput.focus();
 }
 
-async function renderMessage(msg) {
-  const wrapper = document.createElement('div');
-  wrapper.className = `msg-wrapper ${msg.user === window._cu ? 'own' : 'other'}`;
+function setLive(on) { roomBadge.classList.toggle('live', on); }
 
-  // Decrypt using only the user's entered password.
-  // On failure, show "Failed to Read." — never expose raw ciphertext.
-  let text;
-  let decrypted = true;
+/* ── Live stream ─────────────────────────────────────────────────── */
+function closeStream() {
+  if (es) { try { es.close(); } catch(_) {} es = null; }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  setLive(false);
+}
+
+function openStream() {
+  closeStream();
+  if (!window._cr) return;
+
+  let source;
   try {
-    text = await _dec(msg.ciphertext, window._cp);
-  } catch (_) {
-    decrypted = false;
-    text = 'Failed to Read.';
+    source = new EventSource(`${DB_URL}/rooms/${window._cr}.json`);
+  } catch(_) {
+    startPollingFallback();
+    return;
+  }
+  es = source;
+
+  es.addEventListener('put', onStreamPut);
+  es.addEventListener('patch', onStreamPatch);
+  es.addEventListener('keep-alive', () => {});
+  es.addEventListener('cancel', () => showToast('Live stream closed by server.', true));
+  es.addEventListener('auth_revoked', () => {});
+
+  es.onopen = () => { streamErrCount = 0; setLive(true); };
+  es.onerror = () => {
+    setLive(false);
+    // EventSource auto-reconnects; after repeated failures, fall back to polling.
+    streamErrCount++;
+    if (streamErrCount >= 3) {
+      closeStream();
+      startPollingFallback();
+    }
+  };
+}
+
+function onStreamPut(e) {
+  let payload;
+  try { payload = JSON.parse(e.data); } catch(_) { return; }
+  firstSnapshotDone();
+  routePut(payload.path || '/', payload.data);
+}
+
+function onStreamPatch(e) {
+  let payload;
+  try { payload = JSON.parse(e.data); } catch(_) { return; }
+  firstSnapshotDone();
+  const path = payload.path || '/';
+  const data = payload.data || {};
+  // A patch merges fields at `path`. We only care about edits to a message.
+  const m = path.match(/^\/messages\/([^/]+)$/);
+  if (m) {
+    const key = m[1];
+    const prev = msgCache.get(key) || {};
+    upsertMessage(key, Object.assign({}, prev, data));
+  }
+}
+
+// Route a REST-stream "put" by its path within /rooms/{room}.
+function routePut(path, data) {
+  if (path === '/' || path === '') {
+    // Full room snapshot (first connect). Read ALL messages at once.
+    const room = data || {};
+    reconcileMessages(room.messages || {});
+    // Ephemeral entries present in the snapshot are stale (a failed cleanup)
+    // or meant to be live-only — never replay them on (re)connect.
+    return;
+  }
+  const mMsgAll = path === '/messages';
+  if (mMsgAll) { reconcileMessages(data || {}); return; }
+
+  const mMsg = path.match(/^\/messages\/([^/]+)$/);
+  if (mMsg) {
+    const key = mMsg[1];
+    if (data === null) removeMessage(key);
+    else upsertMessage(key, data);
+    return;
+  }
+  // A field-level put inside a message, e.g. /messages/<key>/ciphertext
+  const mField = path.match(/^\/messages\/([^/]+)\/(.+)$/);
+  if (mField) {
+    const key = mField[1];
+    const prev = msgCache.get(key);
+    if (prev) {
+      const copy = Object.assign({}, prev);
+      setDeep(copy, mField[2].split('/'), data);
+      upsertMessage(key, copy);
+    }
+    return;
   }
 
-  const timeStr = msg.timestamp ? formatTime(msg.timestamp) : '';
+  // Ephemeral: only render entries arriving live after we've connected.
+  const mEph = path.match(/^\/ephemeral\/([^/]+)$/);
+  if (mEph && data && data.ciphertext) {
+    renderEphemeral(data);
+  }
+}
+
+function setDeep(obj, keys, val) {
+  let o = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    o[keys[i]] = Object.assign({}, o[keys[i]]);
+    o = o[keys[i]];
+  }
+  o[keys[keys.length - 1]] = val;
+}
+
+function firstSnapshotDone() {
+  if (!connectedOnce) {
+    connectedOnce = true;
+    loadingMsg.classList.add('hidden');
+    setLive(true);
+  }
+}
+
+/* ── Bulk-GET fallback (used only if the stream can't be established) ── */
+function startPollingFallback() {
+  if (pollTimer) return;
+  const tick = async () => {
+    if (!window._cr) return;
+    try {
+      // Read ALL messages in ONE request — no per-message fetches.
+      const res = await fetch(`${DB_URL}/rooms/${window._cr}/messages.json`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const raw = await res.text();
+      firstSnapshotDone();
+      setLive(true);
+      if (!raw || raw.trim() === '' || raw.trim() === 'null') { reconcileMessages({}); return; }
+      if (raw.trim().startsWith('<')) throw new Error('proxy_html');
+      reconcileMessages(JSON.parse(raw));
+    } catch (err) {
+      setLive(false);
+      if (err.message !== 'proxy_html') console.error('Poll error:', err.message || err);
+    }
+  };
+  tick();
+  pollTimer = setInterval(tick, 3000);
+}
+
+/* ── Reconcile a full messages map against what's on screen ──────── */
+function reconcileMessages(messages) {
+  messages = messages || {};
+  // Remove messages that no longer exist (deleted elsewhere).
+  for (const key of [...msgCache.keys()]) {
+    if (!(key in messages)) removeMessage(key);
+  }
+  // Add or update the rest, in timestamp order.
+  const entries = Object.entries(messages)
+    .sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+  for (const [key, m] of entries) upsertMessage(key, m);
+
+  if (connectedOnce && msgCache.size === 0 && !document.getElementById('__emptyNote')) {
+    renderSystem('No messages yet. Send the first one!', '__emptyNote');
+  }
+}
+
+/* ── DOM: create / update / remove message bubbles ───────────────── */
+function hasContentChanged(a, b) {
+  if (!a) return true;
+  return a.ciphertext !== b.ciphertext
+      || a.user !== b.user
+      || !!a.edited !== !!b.edited;
+}
+
+function upsertMessage(key, m) {
+  if (!m || !m.ciphertext) return;
+  const prev = msgCache.get(key);
+  msgCache.set(key, m);
+  removeEmptyNote();
+
+  let wrapper = msgEls.get(key);
+  if (!wrapper) {
+    wrapper = document.createElement('div');
+    wrapper.dataset.key = key;
+    wrapper.dataset.ts = m.timestamp || 0;
+    msgEls.set(key, wrapper);
+    insertInOrder(wrapper);
+    fillMessage(wrapper, key, m);
+  } else if (hasContentChanged(prev, m)) {
+    fillMessage(wrapper, key, m);
+  }
+}
+
+function removeMessage(key) {
+  msgCache.delete(key);
+  const el = msgEls.get(key);
+  if (el) {
+    msgEls.delete(key);
+    el.classList.add('removing');
+    setTimeout(() => el.remove(), 200);
+  }
+}
+
+// Insert a wrapper so children stay ordered by timestamp.
+function insertInOrder(wrapper) {
+  const ts = Number(wrapper.dataset.ts) || 0;
+  const nodes = messageList.querySelectorAll('.msg-wrapper');
+  let ref = null;
+  for (const node of nodes) {
+    if ((Number(node.dataset.ts) || 0) > ts) { ref = node; break; }
+  }
+  messageList.insertBefore(wrapper, ref);
+}
+
+// Decrypt + render a persistent message into its wrapper (own messages
+// get edit/delete controls). Called on create and on every update.
+async function fillMessage(wrapper, key, m) {
+  const own = m.user === window._cu;
+  wrapper.className = `msg-wrapper ${own ? 'own' : 'other'}`;
+
+  let text, decrypted = true;
+  try { text = await _dec(m.ciphertext, window._cp); }
+  catch (_) { decrypted = false; text = 'Failed to Read.'; }
+
+  // Ignore a stale async result if the message changed/vanished meanwhile.
+  // Compare by ciphertext (unique per encryption) rather than object identity,
+  // so an optimistic edit and the confirming stream event don't cancel out.
+  const cur = msgCache.get(key);
+  if (!cur || cur.ciphertext !== m.ciphertext) return;
+
+  const timeStr = m.timestamp ? formatTime(m.timestamp) : '';
+  const editedFlag = m.edited ? `<span class="edited-flag">(edited)</span>` : '';
+
+  const actions = (own && decrypted) ? `
+    <div class="msg-actions">
+      <button class="msg-act edit" title="Edit">✏️</button>
+      <button class="msg-act del" title="Delete">🗑️</button>
+    </div>` : '';
 
   wrapper.innerHTML = `
     <div class="msg-meta">
-      <span class="sender">${escHtml(msg.user)}</span>
-      <span class="time">${timeStr}</span>
+      <span class="sender">${escHtml(m.user)}</span>
+      <span class="time">${timeStr}</span>${editedFlag}
     </div>
-    <div class="msg-bubble ${decrypted ? '' : 'encrypted'}">
-      ${escHtml(text)}
+    <div class="msg-row">
+      <div class="msg-bubble ${decrypted ? '' : 'encrypted'}">${escHtml(text)}</div>
+      ${actions}
     </div>
     ${!decrypted ? `<div class="enc-label">🔒 Wrong password</div>` : ''}
   `;
 
-  messageList.appendChild(wrapper);
+  if (own && decrypted) {
+    wrapper.querySelector('.msg-act.edit')
+      .addEventListener('click', () => beginEdit(key, text));
+    wrapper.querySelector('.msg-act.del')
+      .addEventListener('click', (ev) => confirmDelete(key, ev.currentTarget));
+  }
+}
+
+// Ephemeral messages are rendered live and never cached (not stored).
+async function renderEphemeral(m) {
+  const own = m.user === window._cu;
+  const wrapper = document.createElement('div');
+  wrapper.className = `msg-wrapper ephemeral ${own ? 'own' : 'other'}`;
+  wrapper.dataset.ts = m.timestamp || Date.now();
+
+  let text, decrypted = true;
+  try { text = await _dec(m.ciphertext, window._cp); }
+  catch (_) { decrypted = false; text = 'Failed to Read.'; }
+
+  const timeStr = m.timestamp ? formatTime(m.timestamp) : formatTime(Date.now());
+  wrapper.innerHTML = `
+    <div class="msg-meta">
+      <span class="sender">${escHtml(m.user)}</span>
+      <span class="time">${timeStr}</span>
+      <span class="tag ephemeral">ephemeral</span>
+    </div>
+    <div class="msg-row">
+      <div class="msg-bubble ${decrypted ? '' : 'encrypted'}">${escHtml(text)}</div>
+    </div>
+  `;
+  insertInOrder(wrapper);
   scrollToBottom();
 }
 
-function renderSystem(text) {
+function renderSystem(text, id) {
+  removeEmptyNote();
   const el = document.createElement('div');
   el.className = 'msg-system';
+  if (id) el.id = id;
   el.textContent = text;
   messageList.appendChild(el);
   scrollToBottom();
 }
+function removeEmptyNote() {
+  const n = document.getElementById('__emptyNote');
+  if (n) n.remove();
+}
 
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    messageList.scrollTop = messageList.scrollHeight;
+  requestAnimationFrame(() => { messageList.scrollTop = messageList.scrollHeight; });
+}
+
+/* ── Edit ────────────────────────────────────────────────────────── */
+function beginEdit(key, currentText) {
+  editingKey = key;
+  setEphemeralMode(false);
+  msgInput.value = currentText;
+  msgInput.dispatchEvent(new Event('input'));
+  editBanner.classList.add('show');
+  sendBtn.textContent = '✓';
+  sendBtn.title = 'Save edit';
+  msgInput.focus();
+}
+function cancelEdit() {
+  editingKey = null;
+  editBanner.classList.remove('show');
+  sendBtn.textContent = '➤';
+  sendBtn.title = 'Send message';
+  msgInput.value = '';
+  msgInput.style.height = 'auto';
+}
+cancelEditBtn.addEventListener('click', cancelEdit);
+
+async function saveEdit(key, text) {
+  const existing = msgCache.get(key);
+  if (!existing) { showToast('That message is gone.', true); cancelEdit(); return; }
+  const ciphertext = await _enc(window._cp, text);
+  await firebasePatch(`rooms/${window._cr}/messages/${key}`, {
+    ciphertext,
+    edited: true,
+    editedAt: Date.now()
+  });
+  // Optimistic local update (the stream will confirm it too).
+  upsertMessage(key, Object.assign({}, existing, { ciphertext, edited: true }));
+  cancelEdit();
+}
+
+/* ── Delete ──────────────────────────────────────────────────────── */
+// Two-step inline confirm, so no jarring native dialog.
+function confirmDelete(key, btn) {
+  const actions = btn.parentElement;
+  actions.innerHTML = `
+    <button class="msg-act confirm" title="Confirm delete">Delete?</button>
+    <button class="msg-act" title="Cancel">✕</button>`;
+  const [yes, no] = actions.querySelectorAll('button');
+  yes.addEventListener('click', async () => {
+    try {
+      await firebaseDelete(`rooms/${window._cr}/messages/${key}`);
+      removeMessage(key); // stream will also confirm removal
+    } catch (e) { showToast('Delete failed: ' + (e.message || e), true); }
+  });
+  no.addEventListener('click', () => {
+    const m = msgCache.get(key);
+    const el = msgEls.get(key);
+    if (m && el) fillMessage(el, key, m); // restore normal buttons
   });
 }
 
-async function sendMessage() {
+/* ── Send ────────────────────────────────────────────────────────── */
+function setEphemeralMode(on) {
+  ephemeralMode = on;
+  ephemeralBtn.classList.toggle('active', on);
+  inputHint.classList.toggle('ephemeral', on);
+  if (on) {
+    inputHint.innerHTML = '👻 Ephemeral — this message is relayed live and never saved';
+    msgInput.placeholder = 'Ephemeral message… (not saved)';
+  } else {
+    inputHint.innerHTML = '🔐 Messages are encrypted before leaving your device';
+    msgInput.placeholder = 'Type a message… (Enter to send)';
+  }
+}
+ephemeralBtn.addEventListener('click', () => {
+  if (editingKey) return;            // no ephemeral toggling mid-edit
+  setEphemeralMode(!ephemeralMode);
+  msgInput.focus();
+});
+
+async function handleSend() {
   const text = msgInput.value.trim();
   if (!text) return;
 
+  // Editing an existing message?
+  if (editingKey) {
+    sendBtn.disabled = true;
+    try { await saveEdit(editingKey, text); }
+    catch (e) { showToast('Edit failed: ' + (e.message || e), true); }
+    finally { sendBtn.disabled = false; msgInput.focus(); }
+    return;
+  }
+
   sendBtn.disabled = true;
+  const wasEphemeral = ephemeralMode;
   msgInput.value = '';
   msgInput.style.height = 'auto';
 
@@ -1024,21 +1317,34 @@ async function sendMessage() {
     if (window._banned || await _checkBan()) {
       window._banned = true;
       showToast('Your device is not allowed to use this chat.');
-      sendBtn.disabled = false;
       msgInput.value = text;
       return;
     }
 
     const ciphertext = await _enc(window._cp, text);
-    await firebasePost(`rooms/${window._cr}/messages`, {
+    const payload = {
       user:      window._cu,
       ciphertext,
       timestamp: Date.now(),
       _f: fp.id,
       _fc: { sc: fp.sc, tz: fp.tz, la: fp.la, ua: fp.ua, gl: fp.gl, cv: fp.cv, pl: fp.pl, cd: fp.cd }
-    });
+    };
+
+    if (wasEphemeral) {
+      // Relay-and-delete: write to a transient node so recipients receive it
+      // live over their stream, then remove it so it is not stored.
+      const ref = await firebasePost(`rooms/${window._cr}/ephemeral`, payload);
+      const name = ref && ref.name;
+      if (name) {
+        setTimeout(() => {
+          firebaseDelete(`rooms/${window._cr}/ephemeral/${name}`).catch(() => {});
+        }, 6000); // give recipients' streams time to deliver, then wipe
+      }
+    } else {
+      await firebasePost(`rooms/${window._cr}/messages`, payload);
+    }
   } catch (e) {
-    showToast('Send failed: ' + (e.message || e));
+    showToast('Send failed: ' + (e.message || e), true);
     msgInput.value = text;
   } finally {
     sendBtn.disabled = false;
@@ -1046,17 +1352,20 @@ async function sendMessage() {
   }
 }
 
-sendBtn.addEventListener('click', sendMessage);
+sendBtn.addEventListener('click', handleSend);
 msgInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  if (e.key === 'Escape' && editingKey) { cancelEdit(); }
 });
 
 leaveBtn.addEventListener('click', () => {
-  if (sseSource) { clearInterval(sseSource); sseSource = null; }
+  closeStream();
   window._cu = window._cr = window._cp = '';
+  msgCache.clear();
+  msgEls.clear();
+  editingKey = null;
+  cancelEdit();
+  setEphemeralMode(false);
   chatScreen.classList.add('hidden');
   joinScreen.classList.remove('hidden');
   messageList.innerHTML = '';
