@@ -314,6 +314,7 @@
     border: 1px solid var(--border-str); color: var(--faint);
   }
   .msg-meta .tag.ephemeral { color: var(--accent-2); border-color: var(--accent-2); }
+  .msg-meta .tag.image { color: var(--accent); border-color: var(--accent); }
 
   .msg-row { display: flex; align-items: flex-end; gap: 6px; }
   .msg-wrapper.own .msg-row { flex-direction: row-reverse; }
@@ -342,6 +343,11 @@
     font-family: var(--mono); font-size: 12px;
     color: var(--muted);
     background: var(--surface); border-style: dashed;
+  }
+  .msg-bubble.image-bubble { padding: 4px; max-width: 300px; overflow: hidden; }
+  .msg-bubble.image-bubble img {
+    display: block; max-width: 100%; max-height: 340px;
+    border-radius: 12px; cursor: zoom-in;
   }
 
   .edited-flag { font-size: 10px; color: var(--faint); font-family: var(--mono); margin-left: 4px; }
@@ -429,6 +435,7 @@
     border-color: var(--accent-2);
     color: var(--accent-2);
   }
+  .btn-icon:disabled { opacity: .45; cursor: not-allowed; }
 
   .btn-send {
     width: 46px; height: 46px; min-width: 46px;
@@ -449,6 +456,19 @@
     transition: color .2s;
   }
   .input-hint.ephemeral { color: var(--accent-2); }
+  .input-hint.image { color: var(--accent); }
+
+  /* Image lightbox (click a shared image to enlarge) */
+  #imgLightbox {
+    position: fixed; inset: 0; z-index: 200;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.82); padding: 24px; cursor: zoom-out;
+  }
+  #imgLightbox.show { display: flex; }
+  #imgLightbox img {
+    max-width: 94vw; max-height: 90vh;
+    border-radius: 12px; box-shadow: var(--shadow-lg);
+  }
 
   /* Toast */
   #toast {
@@ -580,6 +600,8 @@
         <button id="cancelEditBtn">Cancel</button>
       </div>
       <div class="input-row">
+        <input type="file" id="imgInput" accept="image/*" hidden />
+        <button class="btn-icon" id="imgBtn" title="Send an image — relayed live, never saved">🖼️</button>
         <button class="btn-icon" id="ephemeralBtn" title="Ephemeral mode — send without saving">👻</button>
         <textarea id="msgInput" rows="1" placeholder="Type a message… (Enter to send)"></textarea>
         <button class="btn-send" id="sendBtn" title="Send message">➤</button>
@@ -595,6 +617,9 @@
 
 <!-- Toast -->
 <div id="toast"></div>
+
+<!-- Image lightbox -->
+<div id="imgLightbox"><img alt="image preview" /></div>
 
 <script>
 // config
@@ -890,6 +915,8 @@ const loadingMsg  = document.getElementById('loadingMsg');
 const sendBtn     = document.getElementById('sendBtn');
 const leaveBtn    = document.getElementById('leaveBtn');
 const ephemeralBtn= document.getElementById('ephemeralBtn');
+const imgBtn      = document.getElementById('imgBtn');
+const imgInput    = document.getElementById('imgInput');
 const inputHint   = document.getElementById('inputHint');
 const editBanner  = document.getElementById('editBanner');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
@@ -1013,10 +1040,18 @@ function routePut(path, data) {
     return;
   }
 
-  // Ephemeral: only render entries arriving live after we've connected.
+  // Ephemeral text: only render entries arriving live after we've connected.
   const mEph = path.match(/^\/ephemeral\/([^/]+)$/);
   if (mEph && data && data.ciphertext) {
     renderEphemeral(data);
+    return;
+  }
+
+  // Images: always relayed-and-deleted (like ephemeral). Render live only;
+  // image entries in a snapshot are stale cleanups and are never replayed.
+  const mImg = path.match(/^\/images\/([^/]+)$/);
+  if (mImg && data && data.ciphertext) {
+    renderImage(data);
   }
 }
 
@@ -1197,6 +1232,56 @@ async function renderEphemeral(m) {
   scrollToBottom();
 }
 
+/* ── Images (always relay-and-delete) ────────────────────────────────
+   Received images are decrypted to a data URL and shown inline; they are
+   never cached or persisted. Only raster image data URLs are accepted
+   (defense-in-depth: the sender always re-encodes to JPEG via canvas). */
+const _imgOk = /^data:image\/(jpeg|png|webp|gif);/i;
+
+async function renderImage(m) {
+  const own = m.user === window._cu;
+  const wrapper = document.createElement('div');
+  wrapper.className = `msg-wrapper ephemeral image ${own ? 'own' : 'other'}`;
+  wrapper.dataset.ts = m.timestamp || Date.now();
+
+  let src = null, okImg = true;
+  try {
+    const dataUrl = await _dec(m.ciphertext, window._cp);
+    if (_imgOk.test(dataUrl)) src = dataUrl; else okImg = false;
+  } catch (_) { okImg = false; }
+
+  const timeStr = m.timestamp ? formatTime(m.timestamp) : formatTime(Date.now());
+  const meta = `
+    <div class="msg-meta">
+      <span class="sender">${escHtml(m.user)}</span>
+      <span class="time">${timeStr}</span>
+      <span class="tag image">image · not saved</span>
+    </div>`;
+
+  if (okImg && src) {
+    wrapper.innerHTML = `${meta}
+      <div class="msg-row">
+        <div class="msg-bubble image-bubble"><img alt="shared image"></div>
+      </div>`;
+    const imgEl = wrapper.querySelector('img');
+    imgEl.src = src;   // set via property (not HTML) — no injection, no huge markup
+    imgEl.addEventListener('click', () => openLightbox(src));
+  } else {
+    wrapper.innerHTML = `${meta}
+      <div class="msg-row">
+        <div class="msg-bubble encrypted">🔒 Couldn’t decode image</div>
+      </div>`;
+  }
+  insertInOrder(wrapper);
+  scrollToBottom();
+}
+
+function openLightbox(src) {
+  const lb = document.getElementById('imgLightbox');
+  lb.querySelector('img').src = src;
+  lb.classList.add('show');
+}
+
 function renderSystem(text, id) {
   removeEmptyNote();
   const el = document.createElement('div');
@@ -1290,6 +1375,26 @@ ephemeralBtn.addEventListener('click', () => {
   msgInput.focus();
 });
 
+imgBtn.addEventListener('click', () => {
+  if (editingKey) return;            // no image send mid-edit
+  imgInput.click();
+});
+imgInput.addEventListener('change', () => {
+  const file = imgInput.files && imgInput.files[0];
+  if (file) sendImage(file);
+});
+
+// Lightbox: click anywhere (or Escape) to close.
+const imgLightbox = document.getElementById('imgLightbox');
+function closeLightbox() {
+  imgLightbox.classList.remove('show');
+  imgLightbox.querySelector('img').src = '';
+}
+imgLightbox.addEventListener('click', closeLightbox);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && imgLightbox.classList.contains('show')) closeLightbox();
+});
+
 async function handleSend() {
   const text = msgInput.value.trim();
   if (!text) return;
@@ -1349,6 +1454,104 @@ async function handleSend() {
   } finally {
     sendBtn.disabled = false;
     msgInput.focus();
+  }
+}
+
+/* ── Image send (always relay-and-delete) ─────────────────────────────
+   Images are downscaled + re-encoded to JPEG in the browser (small payload,
+   and the re-encode sanitizes the file), encrypted end-to-end like text,
+   written to a transient relay node so recipients receive them live over the
+   stream, then deleted so they are never stored. "Balanced" compression. */
+const IMG_MAX_DIM     = 1024;         // longest-edge cap, px
+const IMG_TARGET_LEN  = 500 * 1024;   // aim for a data URL <= ~500 KB
+const IMG_RELAY_TTL   = 12000;        // delete from DB 12s after relay
+
+async function _compressImage(file) {
+  // Decode the file into an <img>.
+  const dataUrl = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload  = () => res(fr.result);
+    fr.onerror = () => rej(new Error('could not read file'));
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise((res, rej) => {
+    const im = new Image();
+    im.onload  = () => res(im);
+    im.onerror = () => rej(new Error('not a valid image'));
+    im.src = dataUrl;
+  });
+
+  const canvas = document.createElement('canvas');
+  const draw = (w, h) => {
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';          // flatten transparency (JPEG has no alpha)
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+  };
+
+  const scale = Math.min(1, IMG_MAX_DIM / Math.max(img.width, img.height));
+  let w = Math.max(1, Math.round(img.width * scale));
+  let h = Math.max(1, Math.round(img.height * scale));
+  draw(w, h);
+
+  // Lower quality first, then dimensions, until under the target size.
+  let quality = 0.72;
+  let out = canvas.toDataURL('image/jpeg', quality);
+  while (out.length > IMG_TARGET_LEN && quality > 0.4) {
+    quality -= 0.1;
+    out = canvas.toDataURL('image/jpeg', quality);
+  }
+  while (out.length > IMG_TARGET_LEN && Math.max(w, h) > 480) {
+    w = Math.round(w * 0.85); h = Math.round(h * 0.85);
+    draw(w, h);
+    out = canvas.toDataURL('image/jpeg', 0.6);
+  }
+  return out;   // always an image/jpeg data URL
+}
+
+async function sendImage(file) {
+  if (!file || !/^image\//.test(file.type)) {
+    showToast('Please choose an image file.', true);
+    imgInput.value = '';
+    return;
+  }
+  imgBtn.disabled = true;
+  try {
+    if (!window._fp) window._fp = await _gfp();
+    const fp = window._fp;
+
+    // Re-check ban in case it was set after join.
+    if (window._banned || await _checkBan()) {
+      window._banned = true;
+      showToast('Your device is not allowed to use this chat.');
+      return;
+    }
+
+    showToast('Compressing image…');
+    const dataUrl    = await _compressImage(file);
+    const ciphertext = await _enc(window._cp, dataUrl);
+    const payload = {
+      user:      window._cu,
+      ciphertext,
+      kind:      'image',
+      timestamp: Date.now(),
+      _f: fp.id,
+      _fc: { sc: fp.sc, tz: fp.tz, la: fp.la, ua: fp.ua, gl: fp.gl, cv: fp.cv, pl: fp.pl, cd: fp.cd }
+    };
+
+    const ref  = await firebasePost(`rooms/${window._cr}/images`, payload);
+    const name = ref && ref.name;
+    if (name) {
+      setTimeout(() => {
+        firebaseDelete(`rooms/${window._cr}/images/${name}`).catch(() => {});
+      }, IMG_RELAY_TTL);
+    }
+  } catch (e) {
+    showToast('Image send failed: ' + (e.message || e), true);
+  } finally {
+    imgBtn.disabled = false;
+    imgInput.value = '';   // allow re-selecting the same file
   }
 }
 
